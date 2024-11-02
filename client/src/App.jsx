@@ -16,9 +16,9 @@ function App() {
       <Navbar/>
       <BrowserRouter>
         <Routes>
-          <Route path='/register' element={<SignupBox />}></Route>
-          <Route path='/login' element={<LoginBox />}></Route>
-          <Route path='/home' element={<Home />}></Route>
+          <Route path='/register' element={<SignupBox />} />
+          <Route path='/login' element={<LoginBox />} />
+          <Route path='/home' element={<Home />} />
         </Routes>
       </BrowserRouter>
       <Footer/>

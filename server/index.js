@@ -18,51 +18,85 @@ app.use(cookieParser())
 mongoose.connect("mongodb://127.0.0.1:27017/employee");
 
 const verifyUser = (req, res, next) => {
-    const token = req.cookies.token;
-    if(!token) {
-        return res.json("The tokwn was not available")
-    } else {
+    try {
+        const token = req.cookies.token;
+        if (!token) {
+            return res.status(401).json({ error: "No token provided", authenticated: false });
+        }
+
         jwt.verify(token, "jwt-secret-key", (err, decoded) => {
-           if(err) return res.json("Token is wrong") 
+            if (err) {
+                return res.status(401).json({ error: "Invalid token", authenticated: false });
+            }
+            req.user = decoded; // Store user data in request for later use
             next();
-        })
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Internal server error", authenticated: false });
     }
 }
 
-app.get('/home',verifyUser, (req, res) => {
-    return res.json("Success")
-})
+app.get('/verify', verifyUser, (req, res) => {
+    return res.json({ 
+        authenticated: true, 
+        user: req.user 
+    });
+});
 
-app.post("/login", (req, res) => {
-    const {email, password} = req.body;
-    EmployeeModel.findOne({email: email})
-    .then(user => {
-        if(user) {
-            bcrypt.compare(password, user.password, (err, response) => {
-                if(response) {
-                    const token = jwt.sign({email: user.email}, "jwt-secret-key", {expiresIn:"1d"})
-                    res.cookie("token", token);
-                    res.json("Success")
-                } else {
-                    res.json("The password is incorrect")
-                }
-            })
-        } else {
-            res.json("No record existed")
+app.get('/home', verifyUser, (req, res) => {
+    return res.json({ 
+        message: "Success",
+        authenticated: true,
+        user: req.user
+    });
+});
+
+app.post("/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await EmployeeModel.findOne({ email: email });
+
+        if (!user) {
+            return res.status(401).json({ error: "User not found" });
         }
-    })
-})
 
-app.post('/register', (req, res) => {
-    const {name, email, password} = req.body;
-    bcrypt.hash(password, 10)
-    .then(hash => {
-        EmployeeModel.create({name, email, password: hash})
-        .then(employees => res.json(employees))
-        .catch(err => res.json(err))
-    }).catch(err => console.log(err.message))
-    
-})
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(401).json({ error: "Invalid password" });
+        }
+
+        const token = jwt.sign(
+            { id: user._id, name: user.name, email: user.email },"jwt-secret-key",{ expiresIn: "1d" }
+        );
+
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 day
+        });
+
+        res.json({ message: "Success", user: { name: user.name, email: user.email } });
+    } catch (error) {
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.post('/register', async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+        const hash = await bcrypt.hash(password, 10);
+        const employee = await EmployeeModel.create({ name, email, password: hash });
+        res.json(employee);
+    } catch (error) {
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.post('/logout', (req, res) => {
+    res.clearCookie('token');
+    res.json({ message: "Logged out successfully" });
+});
 
 app.listen(3001, () => {
     console.log("server is running")
