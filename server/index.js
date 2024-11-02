@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser')
 const app = express();
 app.use(express.json());
 app.use(cors({
-    origin: ["https://mern-assignment-psi.vercel.app/"],
+    origin: ["https://mern-assignment-psi.vercel.app"],
     methods: ["GET", "POST"],
     credentials: true
 }));
